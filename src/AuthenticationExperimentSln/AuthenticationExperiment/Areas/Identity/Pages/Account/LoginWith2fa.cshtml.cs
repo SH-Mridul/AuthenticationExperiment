@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using AuthenticationExperiment.Utility;
 
 namespace AuthenticationExperiment.Areas.Identity.Pages.Account
 {
@@ -19,15 +21,18 @@ namespace AuthenticationExperiment.Areas.Identity.Pages.Account
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly ILogger<LoginWith2faModel> _logger;
+        private readonly IEmailUtility _emailSender;
 
         public LoginWith2faModel(
             SignInManager<IdentityUser> signInManager,
             UserManager<IdentityUser> userManager,
-            ILogger<LoginWith2faModel> logger)
+            ILogger<LoginWith2faModel> logger,
+            IEmailUtility emailUtility)
         {
             _signInManager = signInManager;
             _userManager = userManager;
             _logger = logger;
+            _emailSender = emailUtility;
         }
 
         /// <summary>
@@ -77,12 +82,55 @@ namespace AuthenticationExperiment.Areas.Identity.Pages.Account
         {
             // Ensure the user has gone through the username & password screen first
             var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
-
             if (user == null)
             {
                 throw new InvalidOperationException($"Unable to load two-factor authentication user.");
             }
 
+            string token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email");
+            var email = user.Email;
+            string htmlBody = $@"
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body {{
+                            font-family: Arial, sans-serif;
+                            background-color: #f4f4f4;
+                            padding: 20px;
+                        }}
+                        .container {{
+                            background: #ffffff;
+                            padding: 30px;
+                            border-radius: 8px;
+                            text-align: center;
+                        }}
+                        .code {{
+                            font-size: 32px;
+                            font-weight: bold;
+                            color: #2d89ef;
+                            letter-spacing: 5px;
+                        }}
+                        .footer {{
+                            margin-top: 20px;
+                            font-size: 12px;
+                            color: #888;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class='container'>
+                        <h2>Verify Your Login</h2>
+                        <p>Your 2FA verification code is:</p>
+                        <div class='code'>{token}</div>
+                        <p>This code will expire in a few minutes.</p>
+                        <div class='footer'>
+                            If you didn’t request this, please ignore this email.
+                        </div>
+                    </div>
+                </body>
+                </html>";
+            _emailSender.SendEmail(email, "Your authentication code", htmlBody);
             ReturnUrl = returnUrl;
             RememberMe = rememberMe;
 
@@ -105,8 +153,8 @@ namespace AuthenticationExperiment.Areas.Identity.Pages.Account
             }
 
             var authenticatorCode = Input.TwoFactorCode.Replace(" ", string.Empty).Replace("-", string.Empty);
-
-            var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, rememberMe, Input.RememberMachine);
+            //var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, rememberMe, Input.RememberMachine);
+            var result = await _signInManager.TwoFactorSignInAsync("Email", authenticatorCode, rememberMe, Input.RememberMachine);
 
             var userId = await _userManager.GetUserIdAsync(user);
 

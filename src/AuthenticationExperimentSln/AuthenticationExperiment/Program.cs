@@ -1,7 +1,9 @@
 using AuthenticationExperiment.Data;
 using AuthenticationExperiment.Models.OAuthModels.Facebook;
 using AuthenticationExperiment.Models.OAuthModels.Google;
+using AuthenticationExperiment.Utility;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -54,13 +56,18 @@ try
     });
     #endregion
 
-
+    #region cookie settings
     builder.Services.ConfigureApplicationCookie(options =>
     {
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     });
+    #endregion
 
+    #region mail settings
+    builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+    builder.Services.AddTransient<IEmailUtility, EmailSender>();
+    #endregion
 
     #region Serilog
     builder.Host.UseSerilog((ctx, lc) => lc
