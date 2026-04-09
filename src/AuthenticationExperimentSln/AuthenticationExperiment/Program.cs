@@ -1,7 +1,11 @@
 using AuthenticationExperiment.Data;
 using AuthenticationExperiment.Models.OAuthModels.Facebook;
 using AuthenticationExperiment.Models.OAuthModels.Google;
+using AuthenticationExperiment.Models.Sms;
 using AuthenticationExperiment.Utility;
+using AuthenticationExperiment.Utility.DbIdentityStore;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
@@ -22,11 +26,58 @@ try
     // Add services to the container.
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlServer(connectionString));
+        options.UseNpgsql(connectionString));
+
     builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-    builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
-        .AddEntityFrameworkStores<ApplicationDbContext>();
+    builder.Services.AddDefaultIdentity<IdentityUser>(options =>
+    {
+        options.SignIn.RequireConfirmedAccount = true;
+        options.Password.RequireNonAlphanumeric = false;
+    })
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders() 
+    .AddTokenProvider<AuthenticatorTokenProvider<IdentityUser>>(TokenOptions.DefaultAuthenticatorProvider);
+
+    builder.Services.AddSession(options =>
+    {
+        options.IdleTimeout = TimeSpan.FromMinutes(5);
+        options.Cookie.HttpOnly = true;
+        options.Cookie.IsEssential = true;
+    });
+
+    builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<ApplicationDbContext>();
+
+    builder.Services.AddDistributedMemoryCache();
+
+
+    #region store data
+    // Register TicketStore
+    builder.Services.AddSingleton<ITicketStore, PostgresTicketStore>();
+
+    // Configure cookie middleware
+    builder.Services.ConfigureApplicationCookie(options =>
+    {
+        options.Cookie.Name = ".dev.Auth";
+        options.Cookie.HttpOnly = true;
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+        options.SlidingExpiration = true;
+
+        // Set SessionStore dynamically at runtime
+        options.Events = new CookieAuthenticationEvents
+        {
+            OnSigningIn = context =>
+            {
+                var store = context.HttpContext.RequestServices
+                    .GetRequiredService<ITicketStore>();
+
+                context.Options.SessionStore = store;
+                return Task.CompletedTask;
+            }
+        };
+    });
+    #endregion
 
     #region google authentication settings
     var googleSettings = builder.Configuration
@@ -56,12 +107,9 @@ try
     });
     #endregion
 
-    #region cookie settings
-    builder.Services.ConfigureApplicationCookie(options =>
-    {
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    });
+    #region SMS settings
+    builder.Services.Configure<SmsSettingsModel>(builder.Configuration.GetSection("MobileSmsSettings"));
+    builder.Services.AddTransient<ISmsSender, SmsSender>();
     #endregion
 
     #region mail settings
@@ -93,6 +141,8 @@ try
     app.UseHttpsRedirection();
     app.UseRouting();
 
+    app.UseSession();
+    app.UseAuthentication();
     app.UseAuthorization();
     app.MapStaticAssets();
 

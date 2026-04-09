@@ -31,7 +31,17 @@ namespace AuthenticationExperiment.Controllers
                 info.ProviderKey,
                 isPersistent: false);
 
-            if (signInResult.Succeeded)
+            if (signInResult.RequiresTwoFactor)
+            {
+                return RedirectToPage("/Account/LoginWith2fa", new
+                {
+                    area = "Identity",
+                    ReturnUrl = returnUrl,
+                    RememberMe = false
+                });
+            }
+
+           if (signInResult.Succeeded)
                 return Redirect(returnUrl ?? "/");
 
             var email = info.Principal.FindFirstValue(ClaimTypes.Email);

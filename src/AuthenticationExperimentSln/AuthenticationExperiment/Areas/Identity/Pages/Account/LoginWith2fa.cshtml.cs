@@ -2,17 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 #nullable disable
 
-using System;
-using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
+using AuthenticationExperiment.Utility;
+using Humanizer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using AuthenticationExperiment.Utility;
+using System.ComponentModel.DataAnnotations;
+using System.Text;
 
 namespace AuthenticationExperiment.Areas.Identity.Pages.Account
 {
@@ -22,17 +18,20 @@ namespace AuthenticationExperiment.Areas.Identity.Pages.Account
         private readonly UserManager<IdentityUser> _userManager;
         private readonly ILogger<LoginWith2faModel> _logger;
         private readonly IEmailUtility _emailSender;
+        private readonly ISmsSender _smsSender;
 
         public LoginWith2faModel(
             SignInManager<IdentityUser> signInManager,
             UserManager<IdentityUser> userManager,
             ILogger<LoginWith2faModel> logger,
-            IEmailUtility emailUtility)
+            IEmailUtility emailUtility,
+            ISmsSender smsSender)
         {
             _signInManager = signInManager;
             _userManager = userManager;
             _logger = logger;
             _emailSender = emailUtility;
+            _smsSender = smsSender;
         }
 
         /// <summary>
@@ -87,7 +86,10 @@ namespace AuthenticationExperiment.Areas.Identity.Pages.Account
                 throw new InvalidOperationException($"Unable to load two-factor authentication user.");
             }
 
-            string token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email");
+            string token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email"); //token generation for email provider
+            HttpContext.Session.SetString("2fa_time", DateTime.UtcNow.ToString()); // Store the time when the code was generated in session
+        
+
             var email = user.Email;
             string htmlBody = $@"
                 <!DOCTYPE html>
@@ -130,7 +132,11 @@ namespace AuthenticationExperiment.Areas.Identity.Pages.Account
                     </div>
                 </body>
                 </html>";
-            _emailSender.SendEmail(email, "Your authentication code", htmlBody);
+
+
+            _emailSender.SendEmail(email, "Your authentication code", htmlBody); //sending email with html body
+            _smsSender.SendSmsAsync("01931769834", $"Your 2FA code is: {token}"); //sending sms with the same code for testing
+
             ReturnUrl = returnUrl;
             RememberMe = rememberMe;
 
@@ -145,35 +151,58 @@ namespace AuthenticationExperiment.Areas.Identity.Pages.Account
             }
 
             returnUrl = returnUrl ?? Url.Content("~/");
-
             var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+
             if (user == null)
             {
-                throw new InvalidOperationException($"Unable to load two-factor authentication user.");
+                throw new InvalidOperationException("Unable to load two-factor authentication user.");
             }
 
-            var authenticatorCode = Input.TwoFactorCode.Replace(" ", string.Empty).Replace("-", string.Empty);
-            //var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, rememberMe, Input.RememberMachine);
-            var result = await _signInManager.TwoFactorSignInAsync("Email", authenticatorCode, rememberMe, Input.RememberMachine);
+            var code = Input.TwoFactorCode.Replace(" ", string.Empty).Replace("-", string.Empty); // Remove spaces and dashes from the input code
+            var storedTime = HttpContext.Session.GetString("2fa_time"); // Retrieve the time when the code was generated from session
 
-            var userId = await _userManager.GetUserIdAsync(user);
+            if (string.IsNullOrEmpty(storedTime))
+            {
+                ModelState.AddModelError(string.Empty, "Session expired. Please login again.");
+                return Page();
+            }
+
+            // Calculate the time difference between now and when the code was generated
+            var generatedTime = DateTime.Parse(storedTime); 
+            var timeDiff = DateTime.UtcNow - generatedTime;
+
+            if (timeDiff > TimeSpan.FromMinutes(1))
+            {
+                ModelState.AddModelError(string.Empty, "Code expired. Please request a new one.");
+                return Page();
+            }
+
+
+            // Proceed with 2FA sign-in if the code is valid and not expired
+            var result = await _signInManager.TwoFactorSignInAsync(
+                TokenOptions.DefaultEmailProvider,
+                code,
+                rememberMe,
+                Input.RememberMachine
+            );
 
             if (result.Succeeded)
             {
-                _logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", user.Id);
+                _logger.LogInformation("User with ID '{UserId}' logged in with 2FA.", user.Id);
+                HttpContext.Session.Remove("2fa_time");
                 return LocalRedirect(returnUrl);
             }
-            else if (result.IsLockedOut)
+
+            if (result.IsLockedOut)
             {
                 _logger.LogWarning("User with ID '{UserId}' account locked out.", user.Id);
                 return RedirectToPage("./Lockout");
             }
-            else
-            {
-                _logger.LogWarning("Invalid authenticator code entered for user with ID '{UserId}'.", user.Id);
-                ModelState.AddModelError(string.Empty, "Invalid authenticator code.");
-                return Page();
-            }
+
+            _logger.LogWarning("Invalid 2FA code for user with ID '{UserId}'.", user.Id);
+            ModelState.AddModelError(string.Empty, "Invalid code.");
+
+            return Page();
         }
     }
 }
