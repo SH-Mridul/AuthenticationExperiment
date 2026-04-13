@@ -14,5 +14,6 @@ namespace AuthenticationExperiment.Data
 
         public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
         public DbSet<AuthSession> AuthSessions { get; set; }
+        public DbSet<Product> Products { get; set; }
     }
 }

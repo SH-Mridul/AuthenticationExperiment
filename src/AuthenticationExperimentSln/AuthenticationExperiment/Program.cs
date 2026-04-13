@@ -7,11 +7,9 @@ using AuthenticationExperiment.Utility.DbIdentityStore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Serilog;
-using System.Configuration;
+
 
 #region Boostrap Logger
 Log.Logger = new LoggerConfiguration()
@@ -51,8 +49,16 @@ try
 
     builder.Services.AddDistributedMemoryCache();
 
+    #region redis cache settings
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = "localhost:6379"; // Docker Redis port
+        options.InstanceName = "dev-auth:";
+    });
+    #endregion
 
-    #region store data
+
+    #region store data of identity session
     // Register TicketStore
     builder.Services.AddSingleton<ITicketStore, PostgresTicketStore>();
 
@@ -122,7 +128,10 @@ try
             .ReadFrom.Configuration(ctx.Configuration));
     #endregion
 
+
     builder.Services.AddControllersWithViews();
+  
+
 
     var app = builder.Build();
 
