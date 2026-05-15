@@ -1,0 +1,50 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>User Profile</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 0;
+        }
+        .card {
+            max-width: 500px;
+            margin: 50px auto;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .card h2 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .card p {
+            color: #555;
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>User Information</h2>
+        <p><strong>First Name:</strong> {{ person.GetType }}</p>
+        <p><strong>First Name:</strong> {{ person.FirstName }}</p>
+        <p><strong>Last Name:</strong> {{ person.LastName }}</p>
+
+        <div class="footer">
+            Rendered with Fluid & Liquid
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,55 @@
+﻿@model UserRegistrationDto
+
+@{
+    ViewData["Title"] = "register";
+}
+
+<h2>User Registration</h2>
+
+<form asp-action="Register" asp-antiforgery="true" class="w-50 mx-auto mt-4">
+
+    <h4 class="mb-3 text-center">User Registration</h4>
+
+    <!-- First Name -->
+    <div class="mb-3">
+        <label asp-for="FirstName" class="form-label"></label>
+        <input asp-for="FirstName" class="form-control form-control-sm" />
+        <span asp-validation-for="FirstName" class="text-danger small"></span>
+    </div>
+
+    <!-- Last Name -->
+    <div class="mb-3">
+        <label asp-for="LastName" class="form-label"></label>
+        <input asp-for="LastName" class="form-control form-control-sm" />
+        <span asp-validation-for="LastName" class="text-danger small"></span>
+    </div>
+
+    <!-- Email -->
+    <div class="mb-3">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" class="form-control form-control-sm" />
+        <span asp-validation-for="Email" class="text-danger small"></span>
+    </div>
+
+    <!-- Password -->
+    <div class="mb-3">
+        <label asp-for="Password" class="form-label"></label>
+        <input asp-for="Password" type="password" class="form-control form-control-sm" />
+        <span asp-validation-for="Password" class="text-danger small"></span>
+    </div>
+
+    <!-- Confirm Password -->
+    <div class="mb-3">
+        <label asp-for="ConfirmPassword" class="form-label"></label>
+        <input asp-for="ConfirmPassword" type="password" class="form-control form-control-sm" />
+        <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+    </div>
+
+    <!-- Submit -->
+    <div class="d-grid">
+        <button type="submit" class="btn btn-primary btn-sm">
+            Register
+        </button>
+    </div>
+
+</form>

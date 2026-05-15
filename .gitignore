@@ -3,5 +3,6 @@
 **/obj
 **/*.user
 **/Logs/*
+**/appsettings.json
 
 

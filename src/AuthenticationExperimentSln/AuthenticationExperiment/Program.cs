@@ -1,9 +1,15 @@
 using AuthenticationExperiment.Data;
+using AuthenticationExperiment.Models;
 using AuthenticationExperiment.Models.OAuthModels.Facebook;
 using AuthenticationExperiment.Models.OAuthModels.Google;
 using AuthenticationExperiment.Models.Sms;
 using AuthenticationExperiment.Utility;
 using AuthenticationExperiment.Utility.DbIdentityStore;
+using AuthenticationExperiment.Utility.fluid;
+using AuthenticationExperiment.Validator;
+using FluentValidation;
+using Fluid;
+using Fluid.MvcViewEngine;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -25,6 +31,10 @@ try
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseNpgsql(connectionString));
+
+
+    // Register FluentValidation
+    builder.Services.AddValidatorsFromAssemblyContaining<UserRegistrationValidator>();
 
     builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -128,10 +138,17 @@ try
             .ReadFrom.Configuration(ctx.Configuration));
     #endregion
 
+    builder.Services.Configure<FluidMvcViewOptions>(options =>
+    {
+        options.Parser = new CustomFluidViewParser(new FluidParserOptions());
+    });
 
-    builder.Services.AddControllersWithViews();
-  
 
+    builder.Services.AddControllersWithViews().AddFluid();
+
+    #region fluid configuration
+    TemplateOptions.Default.MemberAccessStrategy.Register<Person>();
+    #endregion
 
     var app = builder.Build();
 
